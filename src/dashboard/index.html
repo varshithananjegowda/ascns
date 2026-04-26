@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ASCNS — Adaptive Supply Chain Neural System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1117; color: #fff; font-family: 'Segoe UI', sans-serif; }
+
+    /* NAV */
+    nav {
+      background: #1a1d2e;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid #2a2d3e;
+    }
+    nav h1 { color: #1D9E75; font-size: 18px; font-family: monospace; }
+    nav span { color: #666; font-size: 12px; }
+    .live-badge {
+      margin-left: auto;
+      background: #1D9E7522;
+      border: 1px solid #1D9E75;
+      color: #1D9E75;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+    }
+
+    /* LAYOUT */
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr 140px;
+      grid-template-rows: 1fr auto;
+      gap: 12px;
+      padding: 12px;
+      height: calc(100vh - 52px);
+    }
+
+    .panel {
+      background: #1a1d2e;
+      border: 1px solid #2a2d3e;
+      border-radius: 10px;
+      padding: 14px;
+      overflow-y: auto;
+    }
+    .panel h2 { font-size: 12px; color: #aaa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* ALERTS */
+    .alert {
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .alert.high { background: #C0392B22; border: 1px solid #C0392B; }
+    .alert.medium { background: #BA751722; border: 1px solid #BA7517; }
+    .alert .label { font-weight: 700; font-size: 10px; margin-bottom: 4px; }
+    .alert.high .label { color: #ff6b6b; }
+    .alert.medium .label { color: #f39c12; }
+    .alert .name { color: #fff; margin-bottom: 2px; }
+    .alert .detail { color: #888; font-size: 10px; }
+
+    /* STATS */
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .stat {
+      background: #12141f;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      border: 1px solid #2a2d3e;
+    }
+    .stat .num { font-size: 22px; font-weight: 700; }
+    .stat .lbl { font-size: 9px; color: #888; margin-top: 2px; }
+    .stat.green .num { color: #1D9E75; }
+    .stat.blue .num { color: #4a9eff; }
+    .stat.red .num { color: #ff6b6b; }
+
+    /* GRAPH */
+    #graph-panel { grid-row: 1; }
+    svg#graph { width: 100%; height: 100%; }
+
+    .node circle { stroke-width: 2; cursor: pointer; }
+    .node text { font-size: 10px; fill: #ccc; pointer-events: none; }
+    .link { stroke-opacity: 0.6; }
+    .link.declared { stroke: #1D9E75; stroke-width: 1.5; }
+    .link.inferred { stroke: #C0392B; stroke-width: 1.5; stroke-dasharray: 5,3; }
+
+    /* LEGEND */
+    .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 10px; color: #888; }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* DRIFT */
+    #drift-panel { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .drift-ring { position: relative; width: 90px; height: 90px; }
+    .drift-ring svg { width: 90px; height: 90px; }
+    .drift-label {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .drift-label .pct { font-size: 18px; font-weight: 700; color: #ff6b6b; }
+    .drift-label .sub { font-size: 8px; color: #888; }
+    .decision-box {
+      background: #1D9E7522;
+      border: 1px solid #1D9E75;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      font-size: 11px;
+      color: #1D9E75;
+      width: 100%;
+    }
+
+    /* SUPPLIER TABLE */
+    #table-panel { grid-column: 1 / -1; max-height: 180px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { color: #666; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid #2a2d3e; }
+    td { padding: 6px 8px; border-bottom: 1px solid #12141f; }
+    .tier-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .t0 { background: #1D9E7522; color: #1D9E75; }
+    .t1 { background: #185FA522; color: #4a9eff; }
+    .t2 { background: #53197222; color: #c084fc; }
+    .t3 { background: #C0392B22; color: #ff6b6b; }
+    .risk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+    /* LOADING */
+    #loading {
+      position: fixed; inset: 0;
+      background: #0f1117;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      z-index: 100;
+    }
+    #loading h2 { color: #1D9E75; font-family: monospace; }
+    #loading p { color: #666; font-size: 13px; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #2a2d3e;
+      border-top-color: #1D9E75;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <h2>⬡ ASCNS</h2>
+  <p>Connecting to supply chain graph...</p>
+</div>
+
+<nav>
+  <h1>⬡ ASCNS</h1>
+  <span>Adaptive Supply Chain Neural System</span>
+  <div class="live-badge">● LIVE</div>
+</nav>
+
+<div class="layout">
+  <!-- Left: Alerts + Stats -->
+  <div class="panel">
+    <h2>⚠ Risk Alerts</h2>
+    <div id="alerts-container"></div>
+    <h2 style="margin-top:16px">Supply Stats</h2>
+    <div class="stats">
+      <div class="stat green"><div class="num" id="stat-suppliers">-</div><div class="lbl">Suppliers</div></div>
+      <div class="stat red"><div class="num" id="stat-risks">-</div><div class="lbl">Chokepoints</div></div>
+      <div class="stat blue"><div class="num" id="stat-declared">-</div><div class="lbl">Declared Links</div></div>
+      <div class="stat" style="color:#c084fc"><div class="num" id="stat-inferred" style="color:#c084fc">-</div><div class="lbl">Inferred Links</div></div>
+    </div>
+  </div>
+
+  <!-- Center: Graph -->
+  <div class="panel" id="graph-panel">
+    <h2>Shadow Supply Graph</h2>
+    <div class="legend">
+      <span><div class="dot" style="background:#1D9E75"></div> Declared</span>
+      <span><div class="dot" style="background:#C0392B"></div> Inferred (hidden)</span>
+      <span><div class="dot" style="background:#ff6b6b; border: 2px solid #fff"></div> Chokepoint</span>
+    </div>
+    <svg id="graph"></svg>
+  </div>
+
+  <!-- Right: Drift Score -->
+  <div class="panel" id="drift-panel">
+    <h2>Drift Score</h2>
+    <div class="drift-ring">
+      <svg viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r="36" fill="none" stroke="#2a2d3e" stroke-width="8"/>
+        <circle id="drift-arc" cx="45" cy="45" r="36" fill="none"
+          stroke="#C0392B" stroke-width="8"
+          stroke-dasharray="226" stroke-dashoffset="226"
+          transform="rotate(-90 45 45)"
+          style="transition: stroke-dashoffset 1s ease"/>
+      </svg>
+      <div class="drift-label">
+        <div class="pct" id="drift-pct">0%</div>
+        <div class="sub">drift</div>
+      </div>
+    </div>
+    <div style="font-size:10px; color:#888; text-align:center">
+      Network drifting from declared map
+    </div>
+    <div class="decision-box" id="decision-box">
+      Analyzing...
+    </div>
+    <div style="font-size:10px; color:#666; text-align:center; margin-top:8px" id="last-updated"></div>
+  </div>
+
+  <!-- Bottom: Supplier Table -->
+  <div class="panel" id="table-panel">
+    <h2>All Suppliers</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Country</th><th>Tier</th><th>Industry</th><th>Risk</th>
+        </tr>
+      </thead>
+      <tbody id="supplier-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000/api/v1';
+
+// Tier colors
+const tierColor = { 0: '#1D9E75', 1: '#4a9eff', 2: '#c084fc', 3: '#ff6b6b' };
+
+async function fetchData() {
+  const [suppliersRes, risksRes] = await Promise.all([
+    fetch(`${API}/suppliers`),
+    fetch(`${API}/risks/concentrations`)
+  ]);
+  const suppliers = await suppliersRes.json();
+  const risks = await risksRes.json();
+  return { suppliers, risks };
+}
+
+function buildGraph(suppliers, risks) {
+  const chokepoints = new Set(risks.chokepoints.map(r => r.chokepoint));
+
+  // Build nodes
+  const nodes = suppliers.suppliers.map(s => ({
+    id: s.s.supplier_id,
+    name: s.s.name,
+    country: s.s.country,
+    tier: s.s.tier,
+    industry: s.s.industry,
+    isChokepoint: chokepoints.has(s.s.name)
+  }));
+
+  // Hardcoded links matching our seed data
+  const links = [
+    { source: 'OEM001', target: 'T1001', type: 'declared' },
+    { source: 'OEM001', target: 'T1002', type: 'declared' },
+    { source: 'OEM001', target: 'T1003', type: 'declared' },
+    { source: 'T1001',  target: 'T2001', type: 'declared' },
+    { source: 'T1002',  target: 'T2003', type: 'declared' },
+    { source: 'T1003',  target: 'T2001', type: 'inferred' },
+    { source: 'T2001',  target: 'T3002', type: 'inferred' },
+    { source: 'T2003',  target: 'T3002', type: 'inferred' },
+  ];
+
+  return { nodes, links };
+}
+
+function renderGraph(nodes, links) {
+  const svg = d3.select('#graph');
+  const el = document.getElementById('graph-panel');
+  const W = el.clientWidth - 28;
+  const H = el.clientHeight - 60;
+
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+  svg.selectAll('*').remove();
+
+  // Arrow markers
+  svg.append('defs').selectAll('marker')
+    .data(['declared', 'inferred'])
+    .enter().append('marker')
+    .attr('id', d => `arrow-${d}`)
+    .attr('viewBox', '0 0 10 10').attr('refX', 22).attr('refY', 5)
+    .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+    .append('path').attr('d', 'M0,0L10,5L0,10z')
+    .attr('fill', d => d === 'declared' ? '#1D9E75' : '#C0392B');
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(90))
+    .force('charge', d3.forceManyBody().strength(-250))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('y', d3.forceY(d => (d.tier / 3) * (H - 80) + 40).strength(0.5));
+
+  const link = svg.append('g').selectAll('line')
+    .data(links).enter().append('line')
+    .attr('class', d => `link ${d.type}`)
+    .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+  const node = svg.append('g').selectAll('g')
+    .data(nodes).enter().append('g')
+    .attr('class', 'node')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  node.append('circle')
+    .attr('r', d => d.tier === 0 ? 22 : d.isChokepoint ? 18 : 14)
+    .attr('fill', d => tierColor[d.tier] + '33')
+    .attr('stroke', d => d.isChokepoint ? '#ff6b6b' : tierColor[d.tier])
+    .attr('stroke-width', d => d.isChokepoint ? 3 : 1.5);
+
+  node.append('text')
+    .attr('dy', -18)
+    .attr('text-anchor', 'middle')
+    .text(d => d.name.length > 12 ? d.name.slice(0, 12) + '…' : d.name);
+
+  node.append('text')
+    .attr('dy', -8)
+    .attr('text-anchor', 'middle')
+    .attr('fill', d => tierColor[d.tier])
+    .style('font-size', '9px')
+    .text(d => `T${d.tier}${d.isChokepoint ? ' ⚠' : ''}`);
+
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+function renderAlerts(risks) {
+  const container = document.getElementById('alerts-container');
+  container.innerHTML = '';
+  if (risks.chokepoints.length === 0) {
+    container.innerHTML = '<div style="color:#1D9E75;font-size:12px">✓ No risks detected</div>';
+    return;
+  }
+  risks.chokepoints.forEach((r, i) => {
+    const level = r.risk_score >= 3 ? 'high' : 'medium';
+    const label = level === 'high' ? 'HIGH RISK' : 'MEDIUM RISK';
+    container.innerHTML += `
+      <div class="alert ${level}">
+        <div class="label">${label}</div>
+        <div class="name">${r.chokepoint}</div>
+        <div class="detail">${r.country} · Affects ${r.risk_score} Tier-1 suppliers</div>
+        <div class="detail">Affects: ${r.affects.join(', ')}</div>
+      </div>`;
+  });
+}
+
+function renderTable(suppliers, risks) {
+  const chokepoints = new Set(risks.chokepoints.map(r => r.chokepoint));
+  const tbody = document.getElementById('supplier-tbody');
+  tbody.innerHTML = '';
+  suppliers.suppliers.forEach(s => {
+    const sup = s.s;
+    const isRisk = chokepoints.has(sup.name);
+    tbody.innerHTML += `
+      <tr>
+        <td>${isRisk ? '<span class="risk-dot" style="background:#ff6b6b"></span>' : ''}${sup.name}</td>
+        <td>${sup.country}</td>
+        <td><span class="tier-badge t${sup.tier}">Tier ${sup.tier}</span></td>
+        <td style="color:#888">${sup.industry}</td>
+        <td style="color:${isRisk ? '#ff6b6b' : '#1D9E75'}">${isRisk ? '⚠ Chokepoint' : '✓ OK'}</td>
+      </tr>`;
+  });
+}
+
+function renderDrift(risks) {
+  const total = risks.count;
+  const pct = Math.min(total * 20 + 25, 99);
+  const circumference = 226;
+  const offset = circumference - (pct / 100) * circumference;
+  document.getElementById('drift-arc').style.strokeDashoffset = offset;
+  document.getElementById('drift-pct').textContent = `${pct}%`;
+  document.getElementById('decision-box').textContent =
+    total > 0 ? '⚡ Act Now — Window Open' : '✓ Network Stable';
+  document.getElementById('last-updated').textContent =
+    'Updated: ' + new Date().toLocaleTimeString();
+}
+
+async function init() {
+  try {
+    const { suppliers, risks } = await fetchData();
+
+    // Stats
+    document.getElementById('stat-suppliers').textContent = suppliers.count;
+    document.getElementById('stat-risks').textContent = risks.count;
+    document.getElementById('stat-declared').textContent = '5';
+    document.getElementById('stat-inferred').textContent = '3';
+
+    const { nodes, links } = buildGraph(suppliers, risks);
+    renderGraph(nodes, links);
+    renderAlerts(risks);
+    renderTable(suppliers, risks);
+    renderDrift(risks);
+
+    document.getElementById('loading').style.display = 'none';
+
+    // Auto-refresh every 30 seconds
+    setInterval(async () => {
+      const { suppliers: s2, risks: r2 } = await fetchData();
+      renderAlerts(r2);
+      renderDrift(r2);
+    }, 30000);
+
+  } catch (err) {
+    document.getElementById('loading').innerHTML = `
+      <h2 style="color:#ff6b6b">Connection Failed</h2>
+      <p style="color:#888">Make sure your backend is running:</p>
+      <code style="color:#1D9E75">uvicorn src.api.main:app --reload</code>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

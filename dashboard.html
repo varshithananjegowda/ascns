@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ASCNS — Adaptive Supply Chain Neural System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1117; color: #fff; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
+
+    nav {
+      background: #1a1d2e; padding: 14px 24px;
+      display: flex; align-items: center; gap: 16px;
+      border-bottom: 1px solid #2a2d3e;
+    }
+    nav .logo { color: #1D9E75; font-size: 20px; font-weight: 700; font-family: monospace; }
+    nav .subtitle { color: #666; font-size: 12px; }
+    nav .live {
+      margin-left: auto; background: #1D9E7520;
+      border: 1px solid #1D9E75; color: #1D9E75;
+      padding: 4px 14px; border-radius: 20px; font-size: 12px;
+    }
+
+    .tabs {
+      display: flex; gap: 4px; padding: 10px 12px 0;
+      border-bottom: 1px solid #2a2d3e; background: #0f1117;
+    }
+    .tab {
+      padding: 8px 18px; border-radius: 8px 8px 0 0;
+      font-size: 12px; cursor: pointer; color: #888;
+      background: #1a1d2e; border: 1px solid #2a2d3e; border-bottom: none;
+    }
+    .tab.active { color: #1D9E75; border-color: #1D9E75; background: #0f1117; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* DASHBOARD */
+    .layout {
+      display: grid; grid-template-columns: 230px 1fr 190px;
+      gap: 12px; padding: 12px; height: calc(100vh - 100px);
+    }
+    .panel {
+      background: #1a1d2e; border: 1px solid #2a2d3e;
+      border-radius: 10px; padding: 16px; overflow-y: auto;
+    }
+    .panel h3 { font-size: 13px; color: #fff; margin-bottom: 12px; font-weight: 600; }
+
+    .alert { border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; }
+    .alert.high   { background: #C0392B20; border: 1px solid #C0392B; }
+    .alert.medium { background: #BA751720; border: 1px solid #BA7517; }
+    .alert .label { font-weight: 700; font-size: 11px; margin-bottom: 4px; }
+    .alert.high   .label { color: #ff6b6b; }
+    .alert.medium .label { color: #f39c12; }
+    .alert .name   { color: #ccc; margin-bottom: 2px; }
+    .alert .detail { color: #888; font-size: 11px; }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .stat { background: #12151f; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #2a2d3e; }
+    .stat .num { font-size: 22px; font-weight: 700; }
+    .stat .lbl { font-size: 10px; color: #888; margin-top: 2px; }
+    .stat.green  .num { color: #1D9E75; }
+    .stat.blue   .num { color: #4a9eff; }
+    .stat.red    .num { color: #ff6b6b; }
+    .stat.yellow .num { color: #f39c12; }
+
+    .center-panel { display: flex; flex-direction: column; gap: 12px; }
+    .graph-area {
+      background: #1a1d2e; border: 1px solid #2a2d3e;
+      border-radius: 10px; padding: 16px; flex: 1; overflow: hidden;
+    }
+    .graph-area h3 { font-size: 13px; margin-bottom: 6px; }
+    #graph-canvas  { width: 100%; height: calc(100% - 48px); }
+
+    .table-panel { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; padding: 16px; }
+    .table-panel h3 { font-size: 13px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { color: #888; font-weight: 500; text-align: left; padding: 6px 8px; border-bottom: 1px solid #2a2d3e; }
+    td { padding: 6px 8px; border-bottom: 1px solid #12151f; color: #ccc; }
+    tr:hover td { background: #12151f; }
+    .tier-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+    .tier-0 { background: #1D9E7530; color: #1D9E75; }
+    .tier-1 { background: #4a9eff30; color: #4a9eff; }
+    .tier-2 { background: #f39c1230; color: #f39c12; }
+    .tier-3 { background: #ff6b6b30; color: #ff6b6b; }
+
+    .drift-circle { width: 110px; height: 110px; margin: 10px auto; position: relative; }
+    .drift-circle svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .drift-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+    .drift-label .pct { font-size: 22px; font-weight: 700; }
+    .drift-label .sub { font-size: 9px; color: #888; }
+    .drift-level {
+      text-align: center; font-size: 11px; font-weight: 700;
+      margin-top: 4px; padding: 3px 10px; border-radius: 10px;
+      display: inline-block; width: 100%;
+    }
+    .hidden-dep { margin-bottom: 7px; padding: 7px; background: #12151f; border-radius: 6px; border-left: 2px solid #ff6b6b; }
+    .hidden-dep .prob  { color: #ff6b6b; font-size: 10px; font-weight: 700; }
+    .hidden-dep .route { color: #ccc; font-size: 10px; margin-top: 2px; }
+    .hidden-dep .meta  { color: #888; font-size: 9px; margin-top: 1px; }
+    .decision-box {
+      border-radius: 8px; padding: 10px; text-align: center;
+      margin-top: 14px; font-size: 11px; font-weight: 600;
+      border: 1px solid #1D9E75; color: #1D9E75; background: #1D9E7515;
+    }
+    .legend { display: flex; gap: 12px; font-size: 11px; color: #888; margin-bottom: 4px; }
+    .legend span { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .refresh-btn {
+      background: #1D9E7520; border: 1px solid #1D9E75; color: #1D9E75;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; margin-top: 12px; width: 100%;
+    }
+    .refresh-btn:hover { background: #1D9E7540; }
+    .loading { color: #666; font-size: 12px; text-align: center; padding: 16px; }
+
+    /* SIMULATOR */
+    .sim-layout { padding: 16px; display: grid; grid-template-columns: 320px 1fr; gap: 16px; height: calc(100vh - 100px); overflow-y: auto; }
+    .sim-controls { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; padding: 20px; height: fit-content; }
+    .sim-controls h3 { font-size: 14px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 11px; color: #888; margin-bottom: 6px; }
+    select { background: #12151f; border: 1px solid #2a2d3e; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 12px; width: 100%; }
+    input[type=range] { accent-color: #1D9E75; width: 100%; }
+    .severity-labels { display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 2px; }
+    .run-btn { width: 100%; padding: 12px; background: #1D9E75; border: none; color: #fff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .run-btn:hover { background: #17875f; }
+    .run-btn:disabled { background: #444; cursor: not-allowed; }
+    .sim-results { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+    .result-card { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; padding: 16px; }
+    .result-card h4 { font-size: 12px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .metric { background: #12151f; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #2a2d3e; }
+    .metric .val { font-size: 20px; font-weight: 700; }
+    .metric .key { font-size: 10px; color: #888; margin-top: 3px; }
+    .metric.danger .val { color: #ff6b6b; }
+    .metric.warn   .val { color: #f39c12; }
+    .metric.good   .val { color: #1D9E75; }
+    .metric.blue   .val { color: #4a9eff; }
+    .timeline-item { display: flex; gap: 12px; padding: 10px; background: #12151f; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #2a2d3e; }
+    .timeline-item.can-act  { border-left-color: #1D9E75; }
+    .timeline-item.too-late { border-left-color: #ff6b6b; }
+    .timeline-item .week { color: #888; font-size: 11px; min-width: 52px; padding-top: 2px; }
+    .timeline-item .content .title { font-size: 12px; color: #fff; margin-bottom: 3px; }
+    .timeline-item .content .note  { font-size: 11px; color: #888; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-bottom: 4px; }
+    .badge.act  { background: #1D9E7530; color: #1D9E75; }
+    .badge.late { background: #ff6b6b30; color: #ff6b6b; }
+    .fin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .fin-item { background: #12151f; border-radius: 8px; padding: 12px; border: 1px solid #2a2d3e; }
+    .fin-item .amount { font-size: 18px; font-weight: 700; color: #ff6b6b; }
+    .fin-item .label  { font-size: 10px; color: #888; margin-top: 3px; }
+    .fin-item.total   { grid-column: span 2; border-color: #ff6b6b; }
+    .fin-item.total .amount { font-size: 24px; color: #ff4444; }
+
+    /* DECISIONS */
+    .dec-layout { padding: 16px; display: grid; grid-template-columns: 280px 1fr; gap: 16px; height: calc(100vh - 100px); overflow-y: auto; }
+
+    .window-panel { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; padding: 20px; height: fit-content; }
+    .window-panel h3 { font-size: 14px; margin-bottom: 16px; }
+
+    .score-circle { width: 120px; height: 120px; margin: 0 auto 16px; position: relative; }
+    .score-circle svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .score-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+    .score-label .num { font-size: 26px; font-weight: 700; }
+    .score-label .sub { font-size: 9px; color: #888; }
+
+    .window-stat { background: #12151f; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .window-stat .wlabel { font-size: 10px; color: #888; margin-bottom: 3px; }
+    .window-stat .wval   { font-size: 13px; font-weight: 600; color: #fff; }
+
+    .window-badge {
+      width: 100%; padding: 10px; border-radius: 8px; text-align: center;
+      font-size: 12px; font-weight: 700; margin-top: 12px;
+    }
+
+    .dec-list { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+
+    .dec-card { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; overflow: hidden; }
+    .dec-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid #2a2d3e;
+    }
+    .dec-num { font-size: 18px; font-weight: 700; color: #888; min-width: 24px; }
+    .dec-title { font-size: 13px; font-weight: 600; color: #fff; flex: 1; }
+    .urgency-badge { padding: 3px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+
+    .dec-body { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dec-section h5 { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .dec-section p  { font-size: 11px; color: #ccc; line-height: 1.5; }
+    .dec-section ul { padding-left: 14px; }
+    .dec-section li { font-size: 11px; color: #ccc; margin-bottom: 3px; line-height: 1.4; }
+
+    .dec-footer {
+      padding: 10px 16px; background: #12151f;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .dec-footer .timing { font-size: 11px; color: #888; }
+    .dec-footer .timing span { color: #fff; font-weight: 600; }
+    .dec-footer .impact { font-size: 11px; color: #1D9E75; }
+
+    .donot-box {
+      margin: 0 16px 14px; padding: 10px 12px;
+      background: #ff6b6b10; border: 1px solid #ff6b6b30;
+      border-radius: 6px; font-size: 11px; color: #ff9999;
+    }
+    .donot-box strong { color: #ff6b6b; }
+
+    .load-dec-btn {
+      background: #1D9E75; border: none; color: #fff;
+      padding: 10px 20px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer; margin-bottom: 16px;
+    }
+    .load-dec-btn:hover { background: #17875f; }
+    .load-dec-btn:disabled { background: #444; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">⬡ ASCNS</div>
+  <div class="subtitle">Adaptive Supply Chain Neural System</div>
+  <div class="live" id="status">● Connecting...</div>
+</nav>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dashboard', this)">📊 Dashboard</div>
+  <div class="tab" onclick="switchTab('simulator', this)">⚡ Disruption Simulator</div>
+  <div class="tab" onclick="switchTab('decisions', this)">🎯 Decision Engine</div>
+</div>
+
+<!-- PAGE 1: DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="layout">
+    <div class="panel">
+      <h3>⚠ Risk Alerts</h3>
+      <div id="alerts"><div class="loading">Loading...</div></div>
+      <div class="stats">
+        <div class="stat green"><div class="num" id="stat-suppliers">-</div><div class="lbl">Suppliers</div></div>
+        <div class="stat red"><div class="num" id="stat-risks">-</div><div class="lbl">Chokepoints</div></div>
+        <div class="stat blue"><div class="num" id="stat-declared">-</div><div class="lbl">Declared</div></div>
+        <div class="stat yellow"><div class="num" id="stat-inferred">-</div><div class="lbl">Inferred</div></div>
+      </div>
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh Data</button>
+    </div>
+    <div class="center-panel">
+      <div class="graph-area">
+        <h3>Shadow Supply Graph</h3>
+        <div class="legend">
+          <span><div class="dot" style="background:#1D9E75"></div> Declared</span>
+          <span><div class="dot" style="background:#ff6b6b"></div> Inferred (hidden)</span>
+          <span><div class="dot" style="background:#ff6b6b;opacity:0.4"></div> ⚠ Chokepoint</span>
+        </div>
+        <canvas id="graph-canvas"></canvas>
+      </div>
+      <div class="table-panel">
+        <h3>Supplier Registry</h3>
+        <table>
+          <thead><tr><th>Name</th><th>Country</th><th>Tier</th><th>Industry</th></tr></thead>
+          <tbody id="supplier-table"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" style="text-align:center;">
+      <h3 style="text-align:left;">Drift Score</h3>
+      <div class="drift-circle">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#2a2d3e" stroke-width="10"/>
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#ff6b6b" stroke-width="10"
+            stroke-dasharray="251" stroke-dashoffset="88" id="drift-ring"/>
+        </svg>
+        <div class="drift-label">
+          <div class="pct" id="drift-pct" style="color:#ff6b6b;">--%</div>
+          <div class="sub">drift</div>
+        </div>
+      </div>
+      <div class="drift-level" id="drift-level">Analyzing...</div>
+      <div style="font-size:10px;color:#888;margin-top:6px;" id="drift-action"></div>
+      <div style="text-align:left;font-size:12px;font-weight:600;color:#fff;margin:14px 0 8px;">Hidden Dependencies</div>
+      <div id="dep-list"><div class="loading">Loading...</div></div>
+      <div class="decision-box" id="decision-box">⏳ Calculating...</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: SIMULATOR -->
+<div class="page" id="page-simulator">
+  <div class="sim-layout">
+    <div class="sim-controls">
+      <h3>⚡ Disruption Simulator</h3>
+      <p style="font-size:11px;color:#888;margin-bottom:16px;">Simulate how a disruption propagates and how panic amplifies the damage.</p>
+      <div class="form-group">
+        <label>Event Type</label>
+        <select id="event-type">
+          <option value="geopolitical">🌍 Geopolitical Conflict</option>
+          <option value="pandemic">🦠 Pandemic</option>
+          <option value="climate">🌪 Climate Disruption</option>
+          <option value="financial">💸 Financial Crisis</option>
+          <option value="cyber">💻 Cyber Attack</option>
+          <option value="logistics">🚢 Logistics Disruption</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Severity: <span id="severity-display" style="color:#1D9E75;font-weight:700;">3 / 5</span></label>
+        <input type="range" min="1" max="5" value="3" id="severity-slider"
+          oninput="document.getElementById('severity-display').textContent=this.value+' / 5'"/>
+        <div class="severity-labels"><span>Minor</span><span>Moderate</span><span>Catastrophic</span></div>
+      </div>
+      <button class="run-btn" id="run-btn" onclick="runSimulation()">▶ Run Simulation</button>
+      <div style="margin-top:20px;padding:12px;background:#12151f;border-radius:8px;font-size:11px;color:#888;">
+        <div style="color:#fff;font-weight:600;margin-bottom:6px;">What this models:</div>
+        <div>• Disruption propagation through hidden tiers</div>
+        <div style="margin-top:4px;">• Panic ordering demand spikes</div>
+        <div style="margin-top:4px;">• Simultaneous supplier switching</div>
+        <div style="margin-top:4px;">• Financial impact with panic amplification</div>
+      </div>
+    </div>
+    <div class="sim-results" id="sim-results">
+      <div style="display:flex;align-items:center;justify-content:center;height:300px;color:#444;font-size:14px;flex-direction:column;gap:8px;">
+        <div style="font-size:32px;">⚡</div>
+        <div>Configure a disruption and click Run Simulation</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: DECISIONS -->
+<div class="page" id="page-decisions">
+  <div class="dec-layout">
+    <div class="window-panel">
+      <h3>🎯 Action Window</h3>
+      <div class="score-circle">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#2a2d3e" stroke-width="10"/>
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#f39c12" stroke-width="10"
+            stroke-dasharray="251" stroke-dashoffset="150" id="score-ring"/>
+        </svg>
+        <div class="score-label">
+          <div class="num" id="score-num" style="color:#f39c12;">--</div>
+          <div class="sub">risk score</div>
+        </div>
+      </div>
+      <div id="overall-risk" style="text-align:center;font-size:13px;font-weight:700;margin-bottom:14px;">Loading...</div>
+
+      <div class="window-stat">
+        <div class="wlabel">Window Status</div>
+        <div class="wval" id="window-status">--</div>
+      </div>
+      <div class="window-stat">
+        <div class="wlabel">Weeks to Crisis</div>
+        <div class="wval" id="weeks-crisis">-- weeks</div>
+      </div>
+      <div class="window-stat">
+        <div class="wlabel">Weeks to Panic Ordering</div>
+        <div class="wval" id="weeks-panic">-- weeks</div>
+      </div>
+      <div class="window-stat">
+        <div class="wlabel">Expected Cost Surge</div>
+        <div class="wval" id="cost-surge">--</div>
+      </div>
+      <div class="window-badge" id="advantage-badge" style="background:#f39c1220;border:1px solid #f39c12;color:#f39c12;">
+        Loading advantage...
+      </div>
+
+      <button class="load-dec-btn" onclick="loadDecisions()" style="width:100%;margin-top:16px;">
+        ↻ Refresh Decisions
+      </button>
+    </div>
+
+    <div class="dec-list" id="dec-list">
+      <div class="loading">Loading decisions...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000/api/v1';
+let suppliersData = [], risksData = [];
+
+const URGENCY_COLORS = {
+  IMMEDIATE: '#ff4444', URGENT: '#ff6b6b',
+  SOON: '#f39c12', MONITOR: '#4a9eff', HOLD: '#1D9E75'
+};
+const URGENCY_ICONS = {
+  IMMEDIATE: '🔴', URGENT: '🟠', SOON: '🟡', MONITOR: '🔵', HOLD: '🟢'
+};
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'decisions') loadDecisions();
+}
+
+async function loadAll() {
+  document.getElementById('status').textContent = '● Connecting...';
+  document.getElementById('status').style.color = '#f39c12';
+  try {
+    await Promise.all([loadSuppliers(), loadRisks(), loadDrift()]);
+    document.getElementById('status').textContent = '● LIVE';
+    document.getElementById('status').style.color = '#1D9E75';
+  } catch(e) {
+    document.getElementById('status').textContent = '● Offline';
+    document.getElementById('status').style.color = '#ff6b6b';
+  }
+}
+
+async function loadSuppliers() {
+  const res = await axios.get(`${API}/suppliers`);
+  suppliersData = res.data.suppliers;
+  document.getElementById('stat-suppliers').textContent = res.data.count;
+  document.getElementById('supplier-table').innerHTML = suppliersData.map(row => {
+    const s = row.s;
+    return `<tr><td>${s.name}</td><td>${s.country}</td>
+      <td><span class="tier-badge tier-${s.tier}">Tier ${s.tier}</span></td>
+      <td>${s.industry}</td></tr>`;
+  }).join('');
+  drawGraph();
+}
+
+async function loadRisks() {
+  const res = await axios.get(`${API}/risks/concentrations`);
+  risksData = res.data.chokepoints;
+  document.getElementById('stat-risks').textContent = res.data.count;
+  const div = document.getElementById('alerts');
+  if (!risksData.length) { div.innerHTML = '<div class="loading">✓ No risks</div>'; return; }
+  div.innerHTML = risksData.map((r,i) => `
+    <div class="alert ${i===0?'high':'medium'}">
+      <div class="label">${i===0?'🔴 HIGH RISK':'🟡 MEDIUM RISK'}</div>
+      <div class="name">${r.chokepoint} (${r.country})</div>
+      <div class="detail">Affects: ${r.affects.join(', ')}</div>
+      <div class="detail">Risk Score: ${r.risk_score}</div>
+    </div>`).join('');
+}
+
+async function loadDrift() {
+  const [dr, hr] = await Promise.all([
+    axios.get(`${API}/risks/drift`),
+    axios.get(`${API}/risks/hidden-dependencies`)
+  ]);
+  const d = dr.data, hidden = hr.data.hidden_dependencies;
+  const pct = d.drift_score, color = d.color || '#ff6b6b';
+  document.getElementById('drift-pct').textContent = pct + '%';
+  document.getElementById('drift-pct').style.color = color;
+  const ring = document.getElementById('drift-ring');
+  ring.setAttribute('stroke-dashoffset', 251 - (251 * pct / 100));
+  ring.setAttribute('stroke', color);
+  const lv = document.getElementById('drift-level');
+  lv.textContent = d.level; lv.style.color = color;
+  lv.style.background = color+'20'; lv.style.border = `1px solid ${color}`;
+  document.getElementById('drift-action').textContent = d.action;
+  document.getElementById('stat-declared').textContent = d.declared_links;
+  document.getElementById('stat-inferred').textContent = d.inferred_links;
+  document.getElementById('dep-list').innerHTML = hidden.length
+    ? hidden.map(h => `<div class="hidden-dep">
+        <div class="prob">HIDDEN · ${Math.round(h.probability*100)}% probability</div>
+        <div class="route">${h.from_supplier} → ${h.to_supplier}</div>
+        <div class="meta">${h.product} · ${h.country} · Tier ${h.tier}</div>
+      </div>`).join('')
+    : '<div class="loading">✓ None detected</div>';
+  const actions = { CRITICAL:{text:'🚨 Act Immediately',color:'#ff4444'}, HIGH:{text:'⚠ Act Within 48h',color:'#ff6b6b'}, MEDIUM:{text:'👁 Monitor Closely',color:'#f39c12'}, LOW:{text:'✓ Stable',color:'#1D9E75'} };
+  const a = actions[d.level] || actions.LOW;
+  const box = document.getElementById('decision-box');
+  box.textContent = a.text; box.style.color = a.color;
+  box.style.borderColor = a.color; box.style.background = a.color+'15';
+}
+
+function drawGraph() {
+  const canvas = document.getElementById('graph-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const pos = {
+    OEM001:{x:W/2,   y:H*.10,label:'AcmeCorp',    tier:0},
+    T1001: {x:W*.18, y:H*.33,label:'AlphaElec',   tier:1},
+    T1002: {x:W*.50, y:H*.33,label:'BetaManuf',   tier:1},
+    T1003: {x:W*.82, y:H*.33,label:'GammaParts',  tier:1},
+    T2001: {x:W*.25, y:H*.60,label:'ChipMaker X', tier:2},
+    T2002: {x:W*.50, y:H*.60,label:'RareMetals',  tier:2},
+    T2003: {x:W*.75, y:H*.60,label:'PCB Factory', tier:2},
+    T3001: {x:W*.25, y:H*.85,label:'LithiumMine', tier:3},
+    T3002: {x:W*.65, y:H*.85,label:'SiliconSource',tier:3},
+  };
+  const colors = ['#1D9E75','#4a9eff','#f39c12','#ff6b6b'];
+  const declared = [['OEM001','T1001'],['OEM001','T1002'],['OEM001','T1003'],['T1001','T2001'],['T1002','T2003']];
+  const inferred = [['T1003','T2001'],['T2001','T3002'],['T2003','T3002']];
+  function edge(a,b,col,dash){
+    const f=pos[a],t=pos[b]; if(!f||!t) return;
+    ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(t.x,t.y);
+    ctx.strokeStyle=col; ctx.lineWidth=1.5;
+    ctx.setLineDash(dash?[6,4]:[]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  declared.forEach(([a,b])=>edge(a,b,'#1D9E7588',false));
+  inferred.forEach(([a,b])=>edge(a,b,'#ff6b6b88',true));
+  const choke = risksData.map(r=>r.chokepoint);
+  Object.entries(pos).forEach(([id,p])=>{
+    const isC=choke.some(c=>p.label.startsWith(c.split(' ')[0]));
+    const col=colors[p.tier]||'#888', r=p.tier===0?30:22;
+    if(isC){ctx.beginPath();ctx.arc(p.x,p.y,r+10,0,Math.PI*2);ctx.fillStyle='#ff6b6b18';ctx.fill();}
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=col+'22';ctx.fill();
+    ctx.strokeStyle=isC?'#ff6b6b':col;ctx.lineWidth=isC?2.5:1.5;ctx.stroke();
+    ctx.fillStyle=isC?'#ff6b6b':col;
+    ctx.font=`${p.tier===0?11:9}px Segoe UI`;ctx.textAlign='center';
+    ctx.fillText(p.label,p.x,p.y+3);
+    if(isC){ctx.font='8px Segoe UI';ctx.fillText('⚠',p.x,p.y+14);}
+  });
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled=true; btn.textContent='⏳ Simulating...';
+  const event_type = document.getElementById('event-type').value;
+  const severity   = parseInt(document.getElementById('severity-slider').value);
+  try {
+    const res = await axios.post(`${API}/simulate/disruption`, {event_type, severity});
+    renderSimResults(res.data, event_type, severity);
+  } catch(e) {
+    document.getElementById('sim-results').innerHTML =
+      `<div class="result-card" style="color:#ff6b6b;">Error: ${e.message}</div>`;
+  }
+  btn.disabled=false; btn.textContent='▶ Run Simulation';
+}
+
+function renderSimResults(d, event_type, severity) {
+  const p=d.panic, f=d.financial, tl=d.timeline;
+  const sevLabel=['','Minor','Low','Moderate','High','Catastrophic'][severity];
+  const evLabel={geopolitical:'🌍 Geopolitical',pandemic:'🦠 Pandemic',climate:'🌪 Climate',financial:'💸 Financial',cyber:'💻 Cyber',logistics:'🚢 Logistics'}[event_type];
+  document.getElementById('sim-results').innerHTML = `
+    <div class="result-card">
+      <h4>${evLabel} · Severity ${severity}/5 (${sevLabel})</h4>
+      <div class="metric-grid">
+        <div class="metric danger"><div class="val">+${p.demand_spike_pct}%</div><div class="key">Demand Spike</div></div>
+        <div class="metric warn"><div class="val">${p.panic_multiplier}x</div><div class="key">Panic Multiplier</div></div>
+        <div class="metric danger"><div class="val">${p.simultaneous_switchers_pct}%</div><div class="key">Market Switching</div></div>
+        <div class="metric ${p.capacity_overload?'danger':'good'}"><div class="val">${p.capacity_overload?'YES ⚠':'No'}</div><div class="key">Capacity Overload</div></div>
+        <div class="metric blue"><div class="val">${p.hoarding_weeks}wk</div><div class="key">Hoarding Duration</div></div>
+        <div class="metric warn"><div class="val">${d.drift_score}%</div><div class="key">Drift Score</div></div>
+      </div>
+    </div>
+    <div class="result-card">
+      <h4>Cascade Failure Timeline</h4>
+      ${tl.map(e=>`<div class="timeline-item ${e.action_available?'can-act':'too-late'}">
+        <div class="week">Week ${e.week}</div>
+        <div class="content">
+          <span class="badge ${e.action_available?'act':'late'}">${e.action_available?'✅ ACT':'❌ LATE'}</span>
+          <div class="title">${e.event}</div>
+          <div class="note">${e.note}</div>
+        </div></div>`).join('')}
+    </div>
+    <div class="result-card">
+      <h4>Financial Impact</h4>
+      <div class="fin-grid">
+        <div class="fin-item"><div class="amount">$${f.disruption_loss_usd.toLocaleString()}</div><div class="label">Disruption Loss</div></div>
+        <div class="fin-item"><div class="amount">$${f.panic_amplification_usd.toLocaleString()}</div><div class="label">Panic Amplification</div></div>
+        <div class="fin-item total"><div class="amount">$${f.total_estimated_loss_usd.toLocaleString()}</div><div class="label">Total Loss — Panic makes it ${f.panic_makes_it_worse_by} worse</div></div>
+      </div>
+    </div>`;
+}
+
+async function loadDecisions() {
+  document.getElementById('dec-list').innerHTML = '<div class="loading">Running decision engine...</div>';
+  try {
+    const res = await axios.get(`${API}/decisions`);
+    const d = res.data;
+    renderDecisions(d);
+  } catch(e) {
+    document.getElementById('dec-list').innerHTML = `<div class="result-card" style="color:#ff6b6b;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderDecisions(d) {
+  const risk = d.risk, win = d.window, decs = d.decisions;
+  const score = risk.composite_risk_score;
+  const riskColors = {CRITICAL:'#ff4444',HIGH:'#ff6b6b',MEDIUM:'#f39c12',LOW:'#1D9E75'};
+  const rColor = riskColors[risk.overall_risk] || '#f39c12';
+
+  // Update window panel
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('score-num').style.color = rColor;
+  document.getElementById('score-ring').setAttribute('stroke', rColor);
+  document.getElementById('score-ring').setAttribute('stroke-dashoffset', 251-(251*score/100));
+  document.getElementById('overall-risk').textContent = risk.overall_risk + ' RISK';
+  document.getElementById('overall-risk').style.color = rColor;
+  document.getElementById('window-status').textContent = win.window_status;
+  document.getElementById('weeks-crisis').textContent = win.weeks_to_crisis + ' weeks';
+  document.getElementById('weeks-panic').textContent = win.weeks_to_panic_order + ' weeks';
+  document.getElementById('cost-surge').textContent = win.cost_surge_expected;
+  const ab = document.getElementById('advantage-badge');
+  ab.textContent = '⏱ ' + win.advantage_over_market;
+  ab.style.background = rColor+'20';
+  ab.style.borderColor = rColor;
+  ab.style.color = rColor;
+
+  // Render decision cards
+  document.getElementById('dec-list').innerHTML = decs.map(dec => {
+    const uc = URGENCY_COLORS[dec.urgency] || '#888';
+    const ui = URGENCY_ICONS[dec.urgency] || '⚪';
+    const howList = dec.how.map(h=>`<li>${h}</li>`).join('');
+    return `
+      <div class="dec-card">
+        <div class="dec-header">
+          <div class="dec-num">#${dec.priority}</div>
+          <div class="dec-title">${dec.action}</div>
+          <span class="urgency-badge" style="background:${uc}20;color:${uc};border:1px solid ${uc};">
+            ${ui} ${dec.urgency}
+          </span>
+        </div>
+        <div class="dec-body">
+          <div class="dec-section">
+            <h5>Why This Matters</h5>
+            <p>${dec.why}</p>
+          </div>
+          <div class="dec-section">
+            <h5>How To Act</h5>
+            <ul>${howList}</ul>
+          </div>
+        </div>
+        <div class="donot-box">
+          <strong>⛔ Do NOT: </strong>${dec.do_not}
+        </div>
+        <div class="dec-footer">
+          <div class="timing">Act by: <span>${dec.time_to_act}</span></div>
+          <div class="impact">✓ ${dec.impact}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+window.addEventListener('resize', drawGraph);
+</script>
+</body>
+</html>
