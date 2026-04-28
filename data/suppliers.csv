@@ -1,0 +1,31 @@
+supplier_name,country,industry,product,lead_time_days,annual_value
+AlphaElec GmbH,Germany,Electronics,Circuit Boards,7,500000
+BetaManuf Co,China,Manufacturing,Enclosures,14,300000
+GammaParts Ltd,Japan,Components,Sensors,10,200000
+ChipMaker X,Taiwan,Semiconductors,Microchips,21,150000
+RareMetals Co,Congo,Raw Materials,Cobalt,45,80000
+PCB Factory,China,Electronics,PCBs,18,100000
+LithiumMine A,Chile,Mining,Lithium,60,60000
+SiliconSource,China,Raw Materials,Silicon,30,90000
+DeltaSupply,South Korea,Electronics,Capacitors,12,120000
+EpsilonTech,USA,Technology,Controllers,8,250000
+ZetaParts,Mexico,Manufacturing,Plastic Parts,15,70000
+EtaMetals,Australia,Mining,Iron Ore,40,55000
+ThetaLogix,India,Logistics,Packaging,5,40000
+IotaChips,Taiwan,Semiconductors,GPUs,25,200000
+KappaFibers,Vietnam,Textiles,Cables,20,35000
+LambdaOptics,Japan,Components,Lenses,22,90000
+MuSensors,Germany,Electronics,Pressure Sensors,9,110000
+NuPower,China,Energy,Batteries,16,180000
+XiConnectors,Malaysia,Electronics,Connectors,11,75000
+OmicronPCB,Thailand,Electronics,PCBs,19,65000
+PiCasting,Brazil,Manufacturing,Metal Castings,35,45000
+RhoChemicals,India,Chemicals,Adhesives,8,30000
+SigmaWires,China,Electronics,Copper Wire,13,85000
+TauPumps,Italy,Machinery,Hydraulic Pumps,28,130000
+UpsilonValves,USA,Machinery,Control Valves,10,95000
+PhiCeramics,Japan,Components,Ceramic Parts,24,70000
+ChiPlastics,China,Manufacturing,ABS Plastic,12,50000
+PsiRubber,Malaysia,Manufacturing,Rubber Seals,15,42000
+OmegaFasteners,Taiwan,Components,Bolts and Screws,7,38000
+AlphaPrime,South Korea,Semiconductors,Memory Chips,20,220000
